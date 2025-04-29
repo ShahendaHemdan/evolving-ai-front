@@ -67,82 +67,70 @@ function initDynamicSections() {
 // Fetch AI tools from PublicAPIs.org and render
 async function fetchAITools() {
     const toolsContainer = document.getElementById('tools-container');
-    
+
     // Show loading spinner
     toolsContainer.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-ai-purple" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading AI tools...</p></div>';
 
     try {
-        // Option 1: Hugging Face API (most reliable)
-        console.log('Trying Hugging Face API...');
-        const hfResponse = await fetch('https://huggingface.co/api/models?sort=downloads&direction=-1&limit=8');
-        if (!hfResponse.ok) throw new Error(`Hugging Face API error: ${hfResponse.status}`);
-        
-        const hfData = await hfResponse.json();
-        console.log('Hugging Face data received:', hfData);
-        
-        if (Array.isArray(hfData) && hfData.length > 0) {
-            const tools = hfData.map(model => ({
-                name: model.modelId.split('/').pop() || model.modelId,
-                category: model.tags?.find(tag => !tag.includes(':')) || 'AI Model',
-                description: model.pipeline_tag || 'State-of-the-art model',
-                image: 'https://huggingface.co/front/assets/huggingface_logo-noborder.svg',
-                badge: model.downloads > 1000000 ? 'Popular' : 'New',
-                url: `https://huggingface.co/${model.modelId}`
-            }));
-            return renderTools(tools);
-        }
-
-        // Option 2: GitHub API as fallback
-        console.log('Trying GitHub API...');
-        const ghResponse = await fetch('https://api.github.com/repos/owainlewis/awesome-artificial-intelligence/contents/README.md');
-        if (ghResponse.ok) {
-            const ghData = await ghResponse.json();
-            const markdown = atob(ghData.content);
-            const tools = parseToolsFromMarkdown(markdown);
-            if (tools.length > 0) {
-                return renderTools(tools.slice(0, 8));
+        const apiKey = '2fbca1e3-b916-42be-8c09-1045c6a8a37e'; // Replace with your actual API key
+        const response = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
             }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch from DeepAI API');
         }
 
-        // Option 3: Local tools.json
-        console.log('Trying local tools.json...');
-        const localResponse = await fetch('tools.json');
-        if (localResponse.ok) {
-            const localTools = await localResponse.json();
-            if (localTools.length > 0) {
-                return renderTools(localTools);
-            }
-        }
+        const toolsData = await response.json();
 
-        throw new Error('All API sources failed');
-        
+        // Assuming the API response has a 'data' property holding model info
+        const popularAITools = toolsData.data.map(model => ({
+            name: model.id,
+            description: model.description || "No description available",
+            image: "https://via.placeholder.com/150", // Use a placeholder image or a related image URL
+            badge: "Available",
+            url: `https://platform.openai.com/models/${model.id}` // Link to model details
+        }));
+
+        renderTools(popularAITools);
+
     } catch (error) {
-        console.error('Error in fetchAITools:', error);
-        // Fallback to hardcoded tools
+        console.error('Error loading tools:', error);
+
+        // Fallback to local tools.json (if any)
+        try {
+            const localResponse = await fetch('tools.json');
+            if (localResponse.ok) {
+                const localTools = await localResponse.json();
+                if (localTools.length > 0) {
+                    return renderTools(localTools);
+                }
+            }
+        } catch (e) {
+            console.error('Error loading local tools:', e);
+        }
+
+        // Final fallback to hardcoded tools
         const fallbackTools = [
             {
-                "name": "TensorFlow",
-                "category": "Machine Learning",
-                "description": "Open source library for machine learning",
-                "image": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485",
+                "name": "ChatGPT",
+                "category": "Chatbot",
+                "description": "AI-powered conversational assistant",
+                "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/1200px-ChatGPT_logo.svg.png",
                 "badge": "Popular",
-                "url": "https://www.tensorflow.org/"
+                "url": "https://chat.openai.com"
             },
             {
-                "name": "PyTorch",
-                "category": "Deep Learning",
-                "description": "Open source machine learning framework",
-                "image": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485",
-                "badge": "Popular",
-                "url": "https://pytorch.org/"
-            },
-            {
-                "name": "Hugging Face",
-                "category": "NLP",
-                "description": "State-of-the-art NLP models",
-                "image": "https://huggingface.co/front/assets/huggingface_logo-noborder.svg",
-                "badge": "Trending",
-                "url": "https://huggingface.co/"
+                "name": "DeepSeek",
+                "category": "AI Assistant",
+                "description": "Advanced AI chat assistant",
+                "image": "https://www.deepseek.com/favicon.ico",
+                "badge": "New",
+                "url": "https://www.deepseek.com"
             }
         ];
         renderTools(fallbackTools);
@@ -151,13 +139,37 @@ async function fetchAITools() {
         toolsContainer.insertAdjacentHTML('afterbegin', `
             <div class="col-12">
                 <div class="alert alert-warning">
-                    Couldn't load live tools. Showing sample data.
-                    ${error.message}
+                    Note: Using sample data as live tools couldn't be loaded.
                 </div>
             </div>
         `);
     }
 }
+
+// Function to render tools
+function renderTools(tools) {
+    const toolsContainer = document.getElementById('tools-container');
+    toolsContainer.innerHTML = ''; // Clear previous content
+
+    tools.forEach(tool => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4 mb-4';
+        col.innerHTML = `
+            <div class="card">
+                <img src="${tool.image}" class="card-img-top" alt="${tool.name}">
+                <div class="card-body">
+                    <h5 class="card-title">${tool.name} <span class="badge bg-secondary">${tool.badge}</span></h5>
+                    <p class="card-text">${tool.description}</p>
+                    <a href="${tool.url}" class="btn btn-primary" target="_blank">Visit Tool</a>
+                </div>
+            </div>
+        `;
+        toolsContainer.appendChild(col);
+    });
+}
+
+// Call the function when the page is loaded
+window.onload = fetchAITools;
 
 // Helper function to parse markdown (same as before)
 function parseToolsFromMarkdown(markdown) {
@@ -253,7 +265,7 @@ function renderTools(tools) {
                     <p class="card-text">${tool.description}</p>
                 </div>
                 <div class="card-footer bg-white border-0">
-                    <a href="${tool.url}" class="btn ai-btn w-100">Try Now</a>
+                    <a href="${tool.url}" class="btn ai-btn w-100" target="_blank">Try Now</a>
                 </div>
             </div>
         `;
